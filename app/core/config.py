@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(gt=0)
 
+    LOGIN_RATE_LIMIT_ATTEMPTS: int = Field(gt=0)
+    LOGIN_RATE_LIMIT_WINDOW_SECONDS: int = Field(gt=0)
+
     FIRST_ADMIN_EMAIL: str
     FIRST_ADMIN_PASSWORD: SecretStr
 

@@ -7,7 +7,7 @@ role-based REST API.
 
 - **Stack:** Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (sync), PostgreSQL 16, Alembic,
   Celery + Redis, JWT (PyJWT) + bcrypt
-- **Quality:** pytest (188 tests, ~96% coverage), Ruff, Black, isort, mypy (strict)
+- **Quality:** pytest (196 tests, ~96% coverage), Ruff, Black, isort, mypy (strict)
 - **Run everything:** `docker compose up --build` → <http://localhost:8000/docs>
 
 ---
@@ -109,7 +109,7 @@ rules and transactions, repositories own the queries, and Celery tasks are thin 
 
 | Method | Path | Admin | Analyst | Viewer | Success |
 |---|---|:-:|:-:|:-:|---|
-| POST | `/auth/login` | public | public | public | 200 token |
+| POST | `/auth/login` | public | public | public | 200 token (429 when rate-limited) |
 | POST | `/auth/register` | ✅ | ❌ | ❌ | 201 user |
 | GET | `/domains?page&limit&status&search` | ✅ | ✅ | ✅ | 200 page |
 | POST | `/domains` | ✅ | ✅ | ❌ | 201 domain (auto-scan queued) |
@@ -128,7 +128,7 @@ Every error uses the same shape:
 
 Common codes: `validation_error` (400), `not_authenticated` / `invalid_token` / `token_expired` /
 `invalid_credentials` (401), `permission_denied` (403), `domain_not_found` (404), `domain_exists` /
-`email_taken` / `scan_in_progress` (409), `internal_error` (500).
+`email_taken` / `scan_in_progress` (409), `rate_limited` (429), `internal_error` (500).
 
 ---
 
@@ -216,7 +216,7 @@ docker compose down -v           # stop and delete the database volume
 
 ## 4. Run the test suite
 
-The suite has **188 tests** (~96% coverage). It covers authentication, the complete RBAC matrix,
+The suite has **196 tests** (~96% coverage). It covers authentication, the complete RBAC matrix,
 domain CRUD (including duplicates and FQDN validation), scan triggering and history, enqueue-after-commit
 ordering, discovery logic with **DNS mocked**, the stale-scan sweeper, asset filtering, health and
 error handling.
@@ -274,6 +274,8 @@ code**: if a required variable is missing, the app refuses to start and names th
 | `JWT_SECRET_KEY` | yes | *(long random string)* | HMAC secret used to sign tokens. **Change it in any real deployment** |
 | `JWT_ALGORITHM` | yes | `HS256` | JWT signing algorithm |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | yes | `60` | Token lifetime (`expires_in` = minutes × 60) |
+| `LOGIN_RATE_LIMIT_ATTEMPTS` | yes | `5` | Login attempts allowed per client IP per window |
+| `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | yes | `60` | Length of the login rate-limit window |
 | `FIRST_ADMIN_EMAIL` | yes | `admin@example.com` | Admin seeded at startup when no users exist |
 | `FIRST_ADMIN_PASSWORD` | yes | `ChangeMe123!` | Seeded admin password; must meet the password policy |
 | `DNS_TIMEOUT_SECONDS` | yes | `5` | Timeout per DNS record type |
@@ -347,6 +349,10 @@ passwords cannot leak back in a response.
   the role is taken from the database, not from the token.
 - Login returns the same 401 message for an unknown email, a wrong password and an inactive account, and
   runs a dummy bcrypt check for unknown emails so response time does not reveal which emails exist.
+- **Login rate limiting:** each client IP gets `LOGIN_RATE_LIMIT_ATTEMPTS` attempts per
+  `LOGIN_RATE_LIMIT_WINDOW_SECONDS` (default 5 per minute), counted in Redis. Further attempts get
+  **429** with a `Retry-After` header, before any password check runs. If Redis is unavailable the
+  limiter fails open (logs a warning) so an outage cannot lock everyone out.
 - `/auth/register` is Admin-only; the first admin is seeded from environment variables.
 - Passwords, tokens and hashes are never logged. Containers run as a non-root user.
 
@@ -369,7 +375,6 @@ and existing data is never modified.
 
 ## 7. Ideas for future improvement
 
-- **Rate limiting** on `/auth/login` (for example 5 attempts per minute per IP, backed by Redis).
 - **Audit log** table for sensitive actions (domain deletion, user registration).
 - **Automatic retries** for transient DNS failures (Celery `retry` with exponential backoff).
 - **Refresh tokens** and token revocation; user management endpoints (deactivate, change role).

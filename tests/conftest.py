@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_scan_dispatcher
+from app.api.deps import get_login_rate_limiter, get_scan_dispatcher
 from app.core.database import engine, get_db
 from app.core.security import create_access_token, hash_password
 from app.main import app
@@ -21,6 +21,15 @@ def unique(prefix: str = "t") -> str:
 
 def auth_headers(user: User, role: UserRole | None = None) -> dict[str, str]:
     return {"Authorization": f"Bearer {create_access_token(user.id, role or user.role)}"}
+
+
+class UnlimitedRateLimiter:
+    def __init__(self) -> None:
+        self.keys: list[str] = []
+
+    def hit(self, key: str) -> int | None:
+        self.keys.append(key)
+        return None
 
 
 class RecordingDispatcher:
@@ -62,9 +71,17 @@ def dispatcher() -> RecordingDispatcher:
 
 
 @pytest.fixture
-def client(db: Session, dispatcher: RecordingDispatcher) -> Iterator[TestClient]:
+def rate_limiter() -> UnlimitedRateLimiter:
+    return UnlimitedRateLimiter()
+
+
+@pytest.fixture
+def client(
+    db: Session, dispatcher: RecordingDispatcher, rate_limiter: UnlimitedRateLimiter
+) -> Iterator[TestClient]:
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_scan_dispatcher] = lambda: dispatcher
+    app.dependency_overrides[get_login_rate_limiter] = lambda: rate_limiter
     try:
         yield TestClient(app, raise_server_exceptions=False)
     finally:

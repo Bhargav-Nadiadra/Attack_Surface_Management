@@ -7,9 +7,11 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
-from app.core.exceptions import AuthenticationError, PermissionDeniedError
+from app.core.exceptions import AuthenticationError, PermissionDeniedError, TooManyRequestsError
 from app.core.permissions import Permission, roles_for
+from app.core.rate_limit import RateLimiter, RedisRateLimiter
 from app.core.security import decode_access_token
 from app.models.enums import UserRole
 from app.models.user import User
@@ -28,6 +30,32 @@ def get_scan_dispatcher() -> ScanDispatcher:
 
 
 Dispatcher = Annotated[ScanDispatcher, Depends(get_scan_dispatcher)]
+
+_login_rate_limiter = RedisRateLimiter.from_url(
+    settings.REDIS_URL,
+    limit=settings.LOGIN_RATE_LIMIT_ATTEMPTS,
+    window_seconds=settings.LOGIN_RATE_LIMIT_WINDOW_SECONDS,
+)
+
+
+def get_login_rate_limiter() -> RateLimiter:
+    return _login_rate_limiter
+
+
+def enforce_login_rate_limit(
+    request: Request, limiter: Annotated[RateLimiter, Depends(get_login_rate_limiter)]
+) -> None:
+    client_ip = request.client.host if request.client else "unknown"
+    retry_after = limiter.hit(f"login:{client_ip}")
+    if retry_after is not None:
+        logger.warning(
+            "auth.rate_limited", extra={"client_ip": client_ip, "retry_after": retry_after}
+        )
+        raise TooManyRequestsError(
+            "Too many login attempts. Please try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
 
 bearer_scheme = HTTPBearer(auto_error=False, description="JWT access token from /auth/login")
 

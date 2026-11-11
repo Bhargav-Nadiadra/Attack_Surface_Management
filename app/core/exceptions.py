@@ -45,6 +45,12 @@ class NotFoundError(AppError):
     message = "Resource not found."
 
 
+class TooManyRequestsError(AppError):
+    status_code = 429
+    code = "rate_limited"
+    message = "Too many requests. Please try again later."
+
+
 class ConflictError(AppError):
     status_code = 409
     code = "conflict"
