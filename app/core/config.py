@@ -24,6 +24,7 @@ class Settings(BaseSettings):
 
     # Database (sync SQLAlchemy + psycopg v3): postgresql+psycopg://user:pass@host:port/dbname
     DATABASE_URL: str
+    DB_CONNECT_TIMEOUT_SECONDS: int = Field(gt=0)
 
     # JWT
     JWT_SECRET_KEY: SecretStr
