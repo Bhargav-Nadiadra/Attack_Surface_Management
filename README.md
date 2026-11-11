@@ -254,6 +254,9 @@ mypy
 
 The `test` stage of the Dockerfile contains these tools too; the production image does not.
 
+**Continuous integration:** `.github/workflows/ci.yml` runs Ruff, Black, isort, mypy and the
+test suite (against a PostgreSQL service container) on every push and pull request to `main`.
+
 ---
 
 ## 5. Environment variables reference
@@ -375,7 +378,6 @@ and existing data is never modified.
 - **Soft delete** for domains, keeping history for audits.
 - **Fully async** stack (`asyncpg` + `AsyncSession`).
 - **Multi-tenancy** (organizations owning domains).
-- **CI pipeline** (GitHub Actions) running lint, mypy and the Docker test suite on every push.
 - Scaling: run multiple API replicas behind a load balancer, add worker replicas, use PgBouncer for
   connection pooling, respect upstream DNS rate limits, and partition the `assets` table by time.
 
