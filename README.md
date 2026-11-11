@@ -7,7 +7,7 @@ role-based REST API.
 
 - **Stack:** Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (sync), PostgreSQL 16, Alembic,
   Celery + Redis, JWT (PyJWT) + bcrypt
-- **Quality:** pytest (180 tests, ~96% coverage), Ruff, Black, isort, mypy (strict)
+- **Quality:** pytest (188 tests, ~96% coverage), Ruff, Black, isort, mypy (strict)
 - **Run everything:** `docker compose up --build` → <http://localhost:8000/docs>
 
 ---
@@ -19,7 +19,9 @@ role-based REST API.
 3. [Run with Docker](#3-run-with-docker)
 4. [Run the test suite](#4-run-the-test-suite)
 5. [Environment variables reference](#5-environment-variables-reference)
-6. [API walkthrough (curl)](#6-api-walkthrough-curl)
+6. [Key design decisions and trade-offs](#6-key-design-decisions-and-trade-offs)
+7. [Ideas for future improvement](#7-ideas-for-future-improvement)
+8. [API walkthrough (curl)](#8-api-walkthrough-curl)
 
 ---
 
@@ -214,7 +216,7 @@ docker compose down -v           # stop and delete the database volume
 
 ## 4. Run the test suite
 
-The suite has **180 tests** (~96% coverage). It covers authentication, the complete RBAC matrix,
+The suite has **188 tests** (~96% coverage). It covers authentication, the complete RBAC matrix,
 domain CRUD (including duplicates and FQDN validation), scan triggering and history, enqueue-after-commit
 ordering, discovery logic with **DNS mocked**, the stale-scan sweeper, asset filtering, health and
 error handling.
@@ -287,7 +289,99 @@ Secrets live only in `.env`, which is git-ignored. Generate a secret with
 
 ---
 
-## 6. API walkthrough (curl)
+## 6. Key design decisions and trade-offs
+
+**Sync SQLAlchemy instead of async.** The brief lists async as a bonus. Sync sessions keep the code and
+tests simpler and fit Celery, whose tasks are synchronous. Route handlers are plain `def`, so FastAPI
+runs them in its thread pool and the event loop is never blocked. Moving to `AsyncSession` is a known
+next step.
+
+**Celery + Redis instead of FastAPI `BackgroundTasks`.** `BackgroundTasks` lose jobs when the process
+restarts and cannot scale beyond one process. Celery gives a durable queue, separate worker processes
+that scale with replicas and `--concurrency`, `acks_late`, time limits, and beat for periodic work.
+
+**Enqueue after commit, plus a sweeper.** The scan row is committed first and enqueued second, so a job
+never references a missing row. If the enqueue fails (Redis down), the API still answers 201/202 and the
+scan stays `PENDING`; beat re-enqueues it. Workers claim jobs with an atomic conditional `UPDATE`, so a
+duplicate delivery is a no-op. Results are not stored in Redis (`task_ignore_result`) because the
+database is the source of truth.
+
+**One active scan per domain, enforced twice.** The API returns 409 when a scan is `PENDING` or
+`RUNNING`, and a **partial unique index** (`scans(domain_id) WHERE status IN ('PENDING','RUNNING')`)
+guarantees it even when two requests race; the resulting `IntegrityError` becomes 409. The brief only
+requires blocking while `RUNNING`; blocking `PENDING` as well avoids duplicate queued jobs.
+
+**Domain status mirrors its latest scan.** `domains.status` is `PENDING`, `RUNNING`, `COMPLETED` or
+`FAILED`, which matches the examples in the brief and makes "find failed domains" a simple filter.
+
+**A domain is never without a scan.** The domain and its first scan are created in the same transaction.
+The automatic scan's `triggered_by` is the user who created the domain.
+
+**Discovery behaviour.**
+- The four record types are queried in sequence, each with its own timeout.
+- `NoAnswer` means "no records of this type"; `NXDOMAIN` fails the scan with a clear message.
+- A timeout on one type is logged and the scan continues; if **every** type fails, the scan fails.
+- Values are normalized: IPs as strings, NS hosts lowercase without the trailing dot, MX as
+  `"<preference> <exchange>"` (for example `10 mail.example.com`). Duplicates within a scan are removed
+  and also blocked by a unique constraint.
+- Unexpected errors are stored as a generic message; the details go only to the logs.
+- Inside Docker, discovery queries public resolvers (`DNS_NAMESERVERS`, default `1.1.1.1,8.8.8.8`)
+  because Docker's built-in DNS drops AAAA answers when the container network has no IPv6. Locally the
+  system resolver is used.
+
+**Asset history vs. current state.** `GET /assets` returns assets from every scan by default, which keeps
+the full history the brief asks for. `latest_only=true` returns only assets from each domain's latest
+`COMPLETED` scan (the current attack surface).
+
+**400 instead of 422.** The brief specifies 400 for validation failures, so FastAPI's default 422 is
+replaced. Validation details name the field and the problem but never echo the submitted value, so
+passwords cannot leak back in a response.
+
+**Security.**
+- bcrypt password hashing; a password policy (8+ characters with upper, lower, digit and special
+  character, no whitespace, at most 72 bytes because of bcrypt's input limit).
+- JWT with expiry. Each request reloads the user, so deactivation and role changes apply immediately;
+  the role is taken from the database, not from the token.
+- Login returns the same 401 message for an unknown email, a wrong password and an inactive account, and
+  runs a dummy bcrypt check for unknown emails so response time does not reveal which emails exist.
+- `/auth/register` is Admin-only; the first admin is seeded from environment variables.
+- Passwords, tokens and hashes are never logged. Containers run as a non-root user.
+
+**Observability.** Structured JSON logs for requests (method, path, status, duration, `request_id`),
+authentication events, the worker job lifecycle (`scan.queued`, `scan.started`, `scan.completed` with
+asset counts, `scan.failed`, `scan.swept`) and errors. Every response carries `X-Request-ID`; a valid
+incoming id is reused so a request can be traced across services.
+
+**Configuration.** Everything comes from the environment. Docker works with no `.env` because compose
+loads `.env.example` and sets the in-network database and Redis URLs itself.
+
+**Testing against the real database.** Tests run on PostgreSQL rather than SQLite (enums and the partial
+index behave differently), each inside a rolled-back transaction, so no separate test database is needed
+and existing data is never modified.
+
+**Project structure.** Follows the layout suggested in the brief, with `tests/` at the project root
+(rather than inside `app/`) so the production image ships without tests.
+
+---
+
+## 7. Ideas for future improvement
+
+- **Rate limiting** on `/auth/login` (for example 5 attempts per minute per IP, backed by Redis).
+- **Audit log** table for sensitive actions (domain deletion, user registration).
+- **Automatic retries** for transient DNS failures (Celery `retry` with exponential backoff).
+- **Refresh tokens** and token revocation; user management endpoints (deactivate, change role).
+- **Scheduled rescans** per domain, and **asset diffing** between scans (new / removed records, alerts).
+- **Metrics** endpoint (Prometheus): request latency, scans by status, scan duration.
+- **Soft delete** for domains, keeping history for audits.
+- **Fully async** stack (`asyncpg` + `AsyncSession`).
+- **Multi-tenancy** (organizations owning domains).
+- **CI pipeline** (GitHub Actions) running lint, mypy and the Docker test suite on every push.
+- Scaling: run multiple API replicas behind a load balancer, add worker replicas, use PgBouncer for
+  connection pooling, respect upstream DNS rate limits, and partition the `assets` table by time.
+
+---
+
+## 8. API walkthrough (curl)
 
 ```bash
 BASE=http://localhost:8000
