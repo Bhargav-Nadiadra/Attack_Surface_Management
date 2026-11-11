@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.api import auth, domains, health, scans
+from app.api import assets, auth, domains, health, scans
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.error_handlers import register_exception_handlers
@@ -52,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(domains.router)
     app.include_router(scans.router)
+    app.include_router(assets.router)
     return app
 
 
