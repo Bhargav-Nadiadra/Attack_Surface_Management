@@ -42,7 +42,7 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
     details = [
         {
             "field": ".".join(str(part) for part in error.get("loc", ())),
-            "message": error.get("msg", ""),
+            "message": error.get("msg", "").removeprefix("Value error, "),
             "type": error.get("type", ""),
         }
         for error in exc.errors()
