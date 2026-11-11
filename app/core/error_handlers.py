@@ -35,7 +35,7 @@ def _status_code_slug(status_code: int) -> str:
 
 
 async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:
-    return _error_response(exc.status_code, exc.code, exc.message, exc.details)
+    return _error_response(exc.status_code, exc.code, exc.message, exc.details, exc.headers)
 
 
 async def validation_error_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
