@@ -42,12 +42,18 @@ def get_login_rate_limiter() -> RateLimiter:
     return _login_rate_limiter
 
 
-def enforce_login_rate_limit(
-    request: Request, limiter: Annotated[RateLimiter, Depends(get_login_rate_limiter)]
-) -> None:
-    client_ip = request.client.host if request.client else "unknown"
-    retry_after = limiter.hit(f"login:{client_ip}")
+LoginRateLimiter = Annotated[RateLimiter, Depends(get_login_rate_limiter)]
+
+
+def login_rate_limit_key(request: Request) -> str:
+    return f"login:{request.client.host if request.client else 'unknown'}"
+
+
+def enforce_login_rate_limit(request: Request, limiter: LoginRateLimiter) -> None:
+    key = login_rate_limit_key(request)
+    retry_after = limiter.retry_after(key)
     if retry_after is not None:
+        client_ip = key.removeprefix("login:")
         logger.warning(
             "auth.rate_limited", extra={"client_ip": client_ip, "retry_after": retry_after}
         )

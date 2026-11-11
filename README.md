@@ -7,7 +7,7 @@ role-based REST API.
 
 - **Stack:** Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (sync), PostgreSQL 16, Alembic,
   Celery + Redis, JWT (PyJWT) + bcrypt
-- **Quality:** pytest (199 tests, ~96% coverage), Ruff, Black, isort, mypy (strict)
+- **Quality:** pytest (202 tests, ~96% coverage), Ruff, Black, isort, mypy (strict)
 - **Run everything:** `docker compose up --build` → <http://localhost:8000/docs>
 
 ---
@@ -216,7 +216,7 @@ docker compose down -v           # stop and delete the database volume
 
 ## 4. Run the test suite
 
-The suite has **199 tests** (~96% coverage). It covers authentication, the complete RBAC matrix,
+The suite has **202 tests** (~96% coverage). It covers authentication, the complete RBAC matrix,
 domain CRUD (including duplicates and FQDN validation), scan triggering and history, enqueue-after-commit
 ordering, discovery logic with **DNS mocked**, the stale-scan sweeper, asset filtering, health and
 error handling.
@@ -274,7 +274,7 @@ code**: if a required variable is missing, the app refuses to start and names th
 | `JWT_SECRET_KEY` | yes | *(long random string)* | HMAC secret used to sign tokens. **Change it in any real deployment** |
 | `JWT_ALGORITHM` | yes | `HS256` | JWT signing algorithm |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | yes | `60` | Token lifetime (`expires_in` = minutes × 60) |
-| `LOGIN_RATE_LIMIT_ATTEMPTS` | yes | `5` | Login attempts allowed per client IP per window |
+| `LOGIN_RATE_LIMIT_ATTEMPTS` | yes | `20` | **Failed** login attempts allowed per client IP per window |
 | `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | yes | `60` | Length of the login rate-limit window |
 | `FIRST_ADMIN_EMAIL` | yes | `admin@example.com` | Admin seeded at startup when no users exist |
 | `FIRST_ADMIN_PASSWORD` | yes | `ChangeMe123!` | Seeded admin password; must meet the password policy |
@@ -349,10 +349,11 @@ passwords cannot leak back in a response.
   the role is taken from the database, not from the token.
 - Login returns the same 401 message for an unknown email, a wrong password and an inactive account, and
   runs a dummy bcrypt check for unknown emails so response time does not reveal which emails exist.
-- **Login rate limiting:** each client IP gets `LOGIN_RATE_LIMIT_ATTEMPTS` attempts per
-  `LOGIN_RATE_LIMIT_WINDOW_SECONDS` (default 5 per minute), counted in Redis. Further attempts get
-  **429** with a `Retry-After` header, before any password check runs. If Redis is unavailable the
-  limiter fails open (logs a warning) so an outage cannot lock everyone out.
+- **Login rate limiting:** each client IP may make `LOGIN_RATE_LIMIT_ATTEMPTS` **failed** logins per
+  `LOGIN_RATE_LIMIT_WINDOW_SECONDS` (default 20 per minute), counted in Redis. Successful logins and
+  malformed requests are not counted. Once the limit is reached, further attempts get **429** with a
+  `Retry-After` header, before any password check runs. If Redis is unavailable the limiter fails open
+  (logs a warning) so an outage cannot lock everyone out.
 - `/auth/register` is Admin-only; the first admin is seeded from environment variables.
 - **Audit log:** domain deletions and user registrations are recorded in the `audit_logs` table
   (actor, action, target, details) **in the same transaction** as the action, so an action and its

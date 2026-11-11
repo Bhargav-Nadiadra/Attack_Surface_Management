@@ -7,7 +7,9 @@ logger = logging.getLogger("app.rate_limit")
 
 
 class RateLimiter(Protocol):
-    def hit(self, key: str) -> int | None: ...
+    def retry_after(self, key: str) -> int | None: ...
+
+    def record_failure(self, key: str) -> None: ...
 
 
 class RedisRateLimiter:
@@ -21,16 +23,26 @@ class RedisRateLimiter:
         client = redis.Redis.from_url(url, socket_connect_timeout=1, socket_timeout=1)
         return cls(client, limit=limit, window_seconds=window_seconds)
 
-    def hit(self, key: str) -> int | None:
-        redis_key = f"ratelimit:{key}"
+    def retry_after(self, key: str) -> int | None:
+        redis_key = self._key(key)
         try:
-            count = int(self.client.incr(redis_key))
-            if count == 1:
-                self.client.expire(redis_key, self.window_seconds)
-            if count <= self.limit:
+            count = int(self.client.get(redis_key) or 0)
+            if count < self.limit:
                 return None
             ttl = int(self.client.ttl(redis_key))
         except redis.RedisError:
             logger.warning("rate_limit.unavailable", extra={"key": key})
             return None
         return ttl if ttl > 0 else self.window_seconds
+
+    def record_failure(self, key: str) -> None:
+        redis_key = self._key(key)
+        try:
+            if int(self.client.incr(redis_key)) == 1:
+                self.client.expire(redis_key, self.window_seconds)
+        except redis.RedisError:
+            logger.warning("rate_limit.unavailable", extra={"key": key})
+
+    @staticmethod
+    def _key(key: str) -> str:
+        return f"ratelimit:{key}"

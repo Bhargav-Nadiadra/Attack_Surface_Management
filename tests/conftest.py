@@ -25,11 +25,15 @@ def auth_headers(user: User, role: UserRole | None = None) -> dict[str, str]:
 
 class UnlimitedRateLimiter:
     def __init__(self) -> None:
-        self.keys: list[str] = []
+        self.checked: list[str] = []
+        self.failures: list[str] = []
 
-    def hit(self, key: str) -> int | None:
-        self.keys.append(key)
+    def retry_after(self, key: str) -> int | None:
+        self.checked.append(key)
         return None
+
+    def record_failure(self, key: str) -> None:
+        self.failures.append(key)
 
 
 class RecordingDispatcher:

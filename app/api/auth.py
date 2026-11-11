@@ -1,8 +1,15 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 
-from app.api.deps import DbSession, enforce_login_rate_limit, require_permission
+from app.api.deps import (
+    DbSession,
+    LoginRateLimiter,
+    enforce_login_rate_limit,
+    login_rate_limit_key,
+    require_permission,
+)
+from app.core.exceptions import AuthenticationError
 from app.core.permissions import Permission
 from app.models.user import User
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
@@ -19,11 +26,17 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     dependencies=[Depends(enforce_login_rate_limit)],
     responses={
         401: {"model": ErrorResponse, "description": "Invalid credentials"},
-        429: {"model": ErrorResponse, "description": "Too many login attempts"},
+        429: {"model": ErrorResponse, "description": "Too many failed login attempts"},
     },
 )
-def login(data: LoginRequest, db: DbSession) -> TokenResponse:
-    return AuthService(db).login(data.email, data.password)
+def login(
+    data: LoginRequest, db: DbSession, request: Request, limiter: LoginRateLimiter
+) -> TokenResponse:
+    try:
+        return AuthService(db).login(data.email, data.password)
+    except AuthenticationError:
+        limiter.record_failure(login_rate_limit_key(request))
+        raise
 
 
 @router.post(
