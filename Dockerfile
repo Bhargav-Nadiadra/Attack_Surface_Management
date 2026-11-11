@@ -31,3 +31,17 @@ USER app
 EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+
+FROM runtime AS test
+
+USER root
+RUN python -c "import tomllib; deps = tomllib.load(open('pyproject.toml', 'rb'))['project']['optional-dependencies']['dev']; print('\n'.join(deps))" > /tmp/requirements-dev.txt \
+    && pip install --no-cache-dir --disable-pip-version-check -r /tmp/requirements-dev.txt \
+    && rm /tmp/requirements-dev.txt
+COPY --chown=app:app tests ./tests
+USER app
+
+ENV COVERAGE_FILE=/tmp/.coverage
+
+CMD ["pytest", "-p", "no:cacheprovider", "--cov=app", "--cov-report=term-missing"]

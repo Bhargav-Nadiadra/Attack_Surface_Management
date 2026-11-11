@@ -103,5 +103,17 @@ services:
       redis:
         condition: service_healthy
 
+  tests:
+    <<: *app
+    build:
+      context: .
+      target: test
+    image: asm-asset-discovery:test
+    profiles: ["test"]
+    restart: "no"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
 volumes:
   pgdata:

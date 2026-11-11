@@ -2,6 +2,7 @@ import uuid
 from collections.abc import Sequence
 
 from sqlalchemy import Row, Select, func, select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session
 
 from app.models.asset import Asset
@@ -46,7 +47,7 @@ class AssetRepository:
         latest = (
             select(Scan.id)
             .where(Scan.status == ScanStatus.COMPLETED)
-            .distinct(Scan.domain_id)
+            .ext(distinct_on(Scan.domain_id))
             .order_by(Scan.domain_id, Scan.completed_at.desc(), Scan.created_at.desc())
         )
         if domain_id is not None:
