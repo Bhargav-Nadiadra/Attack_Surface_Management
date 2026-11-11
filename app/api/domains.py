@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
-from app.api.deps import DbSession, require_permission
+from app.api.deps import DbSession, Dispatcher, require_permission
 from app.core.permissions import Permission
 from app.models.enums import ScanStatus
 from app.models.user import User
@@ -25,6 +25,7 @@ FORBIDDEN = {403: {"model": ErrorResponse, "description": "Role not allowed"}}
 @router.get("", response_model=Page[DomainResponse], summary="List domains")
 def list_domains(
     db: DbSession,
+    dispatcher: Dispatcher,
     pagination: Pagination,
     _: Annotated[User, Depends(require_permission(Permission.DOMAIN_READ))],
     status_filter: Annotated[
@@ -34,7 +35,7 @@ def list_domains(
         str | None, Query(max_length=253, description="Case-insensitive partial name match")
     ] = None,
 ) -> Page[DomainResponse]:
-    items, total = DomainService(db).list(
+    items, total = DomainService(db, dispatcher).list(
         status=status_filter,
         search=search.strip() if search else None,
         offset=pagination.offset,
@@ -58,9 +59,10 @@ def list_domains(
 def create_domain(
     data: DomainCreate,
     db: DbSession,
+    dispatcher: Dispatcher,
     user: Annotated[User, Depends(require_permission(Permission.DOMAIN_CREATE))],
 ) -> DomainResponse:
-    return DomainResponse.model_validate(DomainService(db).create(data.domain, user))
+    return DomainResponse.model_validate(DomainService(db, dispatcher).create(data.domain, user))
 
 
 @router.get(
@@ -72,9 +74,10 @@ def create_domain(
 def get_domain(
     domain_id: uuid.UUID,
     db: DbSession,
+    dispatcher: Dispatcher,
     _: Annotated[User, Depends(require_permission(Permission.DOMAIN_READ))],
 ) -> DomainResponse:
-    return DomainResponse.model_validate(DomainService(db).get(domain_id))
+    return DomainResponse.model_validate(DomainService(db, dispatcher).get(domain_id))
 
 
 @router.delete(
@@ -86,7 +89,8 @@ def get_domain(
 def delete_domain(
     domain_id: uuid.UUID,
     db: DbSession,
+    dispatcher: Dispatcher,
     user: Annotated[User, Depends(require_permission(Permission.DOMAIN_DELETE))],
 ) -> Response:
-    DomainService(db).delete(domain_id, user)
+    DomainService(db, dispatcher).delete(domain_id, user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

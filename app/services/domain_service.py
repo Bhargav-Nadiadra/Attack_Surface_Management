@@ -10,22 +10,27 @@ from app.models.domain import Domain
 from app.models.enums import ScanStatus
 from app.models.user import User
 from app.repositories.domain_repository import DomainRepository
+from app.services.scan_dispatcher import ScanDispatcher
+from app.services.scan_service import ScanService
 
 logger = logging.getLogger("app.domains")
 
 
 class DomainService:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, dispatcher: ScanDispatcher) -> None:
         self.session = session
+        self.dispatcher = dispatcher
         self.domains = DomainRepository(session)
 
     def create(self, name: str, user: User) -> Domain:
         if self.domains.get_by_name(name):
             raise self._duplicate(name)
 
+        scans = ScanService(self.session, self.dispatcher)
         domain = Domain(name=name, status=ScanStatus.PENDING, created_by=user.id)
         try:
             self.domains.add(domain)
+            scan = scans.new_pending_scan(domain, triggered_by=user.id)
             self.session.commit()
         except IntegrityError as exc:
             self.session.rollback()
@@ -33,8 +38,14 @@ class DomainService:
 
         logger.info(
             "domain.created",
-            extra={"domain_id": str(domain.id), "domain": domain.name, "user_id": str(user.id)},
+            extra={
+                "domain_id": str(domain.id),
+                "domain": domain.name,
+                "scan_id": str(scan.id),
+                "user_id": str(user.id),
+            },
         )
+        scans.enqueue(scan)
         return domain
 
     def get(self, domain_id: uuid.UUID) -> Domain:
