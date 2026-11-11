@@ -1,5 +1,3 @@
-"""Health endpoint (DB connectivity check is added in Phase 11)."""
-
 from fastapi import APIRouter
 
 router = APIRouter(tags=["health"])
