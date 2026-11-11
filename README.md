@@ -7,7 +7,7 @@ role-based REST API.
 
 - **Stack:** Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (sync), PostgreSQL 16, Alembic,
   Celery + Redis, JWT (PyJWT) + bcrypt
-- **Quality:** pytest (196 tests, ~96% coverage), Ruff, Black, isort, mypy (strict)
+- **Quality:** pytest (199 tests, ~96% coverage), Ruff, Black, isort, mypy (strict)
 - **Run everything:** `docker compose up --build` → <http://localhost:8000/docs>
 
 ---
@@ -216,7 +216,7 @@ docker compose down -v           # stop and delete the database volume
 
 ## 4. Run the test suite
 
-The suite has **196 tests** (~96% coverage). It covers authentication, the complete RBAC matrix,
+The suite has **199 tests** (~96% coverage). It covers authentication, the complete RBAC matrix,
 domain CRUD (including duplicates and FQDN validation), scan triggering and history, enqueue-after-commit
 ordering, discovery logic with **DNS mocked**, the stale-scan sweeper, asset filtering, health and
 error handling.
@@ -354,6 +354,9 @@ passwords cannot leak back in a response.
   **429** with a `Retry-After` header, before any password check runs. If Redis is unavailable the
   limiter fails open (logs a warning) so an outage cannot lock everyone out.
 - `/auth/register` is Admin-only; the first admin is seeded from environment variables.
+- **Audit log:** domain deletions and user registrations are recorded in the `audit_logs` table
+  (actor, action, target, details) **in the same transaction** as the action, so an action and its
+  audit record are saved together or not at all. Records outlive the deleted domain.
 - Passwords, tokens and hashes are never logged. Containers run as a non-root user.
 
 **Observability.** Structured JSON logs for requests (method, path, status, duration, `request_id`),
@@ -375,7 +378,6 @@ and existing data is never modified.
 
 ## 7. Ideas for future improvement
 
-- **Audit log** table for sensitive actions (domain deletion, user registration).
 - **Automatic retries** for transient DNS failures (Celery `retry` with exponential backoff).
 - **Refresh tokens** and token revocation; user management endpoints (deactivate, change role).
 - **Scheduled rescans** per domain, and **asset diffing** between scans (new / removed records, alerts).

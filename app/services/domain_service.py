@@ -10,6 +10,7 @@ from app.models.domain import Domain
 from app.models.enums import ScanStatus
 from app.models.user import User
 from app.repositories.domain_repository import DomainRepository
+from app.services.audit_service import AuditAction, record_audit
 from app.services.scan_dispatcher import ScanDispatcher
 from app.services.scan_service import ScanService
 
@@ -61,6 +62,14 @@ class DomainService:
 
     def delete(self, domain_id: uuid.UUID, user: User) -> None:
         domain = self.get(domain_id)
+        record_audit(
+            self.session,
+            AuditAction.DOMAIN_DELETED,
+            actor=user,
+            target_type="domain",
+            target_id=domain.id,
+            details={"domain": domain.name},
+        )
         self.domains.delete(domain)
         self.session.commit()
         logger.info(

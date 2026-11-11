@@ -40,6 +40,6 @@ def login(data: LoginRequest, db: DbSession) -> TokenResponse:
 def register(
     data: RegisterRequest,
     db: DbSession,
-    _: Annotated[User, Depends(require_permission(Permission.USER_REGISTER))],
+    admin: Annotated[User, Depends(require_permission(Permission.USER_REGISTER))],
 ) -> UserResponse:
-    return UserResponse.model_validate(AuthService(db).register(data))
+    return UserResponse.model_validate(AuthService(db).register(data, admin))

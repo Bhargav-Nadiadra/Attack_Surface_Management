@@ -17,6 +17,7 @@ from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.schemas.auth import RegisterRequest, TokenResponse
 from app.schemas.validators import validate_password_strength
+from app.services.audit_service import AuditAction, record_audit
 
 logger = logging.getLogger("app.auth")
 
@@ -28,7 +29,7 @@ class AuthService:
         self.session = session
         self.users = UserRepository(session)
 
-    def register(self, data: RegisterRequest) -> User:
+    def register(self, data: RegisterRequest, actor: User) -> User:
         if self.users.get_by_email(data.email):
             raise ConflictError("A user with this email already exists.", code="email_taken")
 
@@ -40,6 +41,14 @@ class AuthService:
         )
         try:
             self.users.add(user)
+            record_audit(
+                self.session,
+                AuditAction.USER_REGISTERED,
+                actor=actor,
+                target_type="user",
+                target_id=user.id,
+                details={"email": user.email, "role": user.role.value},
+            )
             self.session.commit()
         except IntegrityError as exc:
             self.session.rollback()
