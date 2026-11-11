@@ -26,7 +26,7 @@ def run_discovery_scan(scan_id: str) -> str | None:
         return None
 
     with SessionLocal() as session:
-        resolver = DnsPythonResolver(settings.DNS_TIMEOUT_SECONDS)
+        resolver = DnsPythonResolver(settings.DNS_TIMEOUT_SECONDS, settings.dns_nameservers)
         status = DiscoveryService(session, resolver).run_scan(parsed_id)
     return status.value if status else None
 

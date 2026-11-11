@@ -207,9 +207,17 @@ class TestCeleryTasks:
     def test_run_discovery_task_uses_service(self, db, pending, monkeypatch) -> None:
         domain, scan = pending
         monkeypatch.setattr(tasks, "SessionLocal", lambda: nullcontext(db))
-        monkeypatch.setattr(tasks, "DnsPythonResolver", lambda _: FakeResolver({A: ["3.3.3.3"]}))
+        monkeypatch.setattr(tasks.settings, "DNS_NAMESERVERS", "9.9.9.9")
+        created_with: list[tuple[float, list[str]]] = []
+
+        def fake_resolver_factory(timeout: float, nameservers: list[str]) -> FakeResolver:
+            created_with.append((timeout, nameservers))
+            return FakeResolver({A: ["3.3.3.3"]})
+
+        monkeypatch.setattr(tasks, "DnsPythonResolver", fake_resolver_factory)
 
         assert tasks.run_discovery_scan.run(str(scan.id)) == "COMPLETED"
+        assert created_with == [(tasks.settings.DNS_TIMEOUT_SECONDS, ["9.9.9.9"])]
         _, scan, assets = _refresh(db, domain, scan)
         assert [a.value for a in assets] == ["3.3.3.3"]
 
@@ -282,3 +290,11 @@ class TestDnsPythonResolver:
     def test_no_answer_is_empty(self, monkeypatch, resolver) -> None:
         self._answer(monkeypatch, resolver, dns.resolver.NoAnswer())
         assert resolver.resolve("example.com", AAAA) == []
+
+    def test_custom_nameservers_are_used(self) -> None:
+        resolver = DnsPythonResolver(timeout_seconds=2, nameservers=["1.1.1.1", "8.8.8.8"])
+        assert resolver._resolver.nameservers == ["1.1.1.1", "8.8.8.8"]
+
+    def test_system_nameservers_by_default(self) -> None:
+        system = dns.resolver.Resolver().nameservers
+        assert DnsPythonResolver(timeout_seconds=2)._resolver.nameservers == system

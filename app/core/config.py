@@ -1,6 +1,7 @@
+import ipaddress
 from functools import lru_cache
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,6 +27,7 @@ class Settings(BaseSettings):
     FIRST_ADMIN_PASSWORD: SecretStr
 
     DNS_TIMEOUT_SECONDS: float = Field(gt=0)
+    DNS_NAMESERVERS: str | None = None
 
     REDIS_URL: str
     CELERY_BROKER_URL: str | None = None
@@ -45,6 +47,21 @@ class Settings(BaseSettings):
         if not self.CELERY_RESULT_BACKEND:
             self.CELERY_RESULT_BACKEND = self.REDIS_URL
         return self
+
+    @field_validator("DNS_NAMESERVERS")
+    @classmethod
+    def _check_nameservers(cls, value: str | None) -> str | None:
+        servers = [server.strip() for server in (value or "").split(",") if server.strip()]
+        for server in servers:
+            try:
+                ipaddress.ip_address(server)
+            except ValueError as exc:
+                raise ValueError(f"DNS_NAMESERVERS entry '{server}' is not an IP address.") from exc
+        return ",".join(servers) or None
+
+    @property
+    def dns_nameservers(self) -> list[str]:
+        return self.DNS_NAMESERVERS.split(",") if self.DNS_NAMESERVERS else []
 
     @model_validator(mode="after")
     def _check_time_limits(self) -> "Settings":

@@ -201,6 +201,7 @@ Optional compose variables (shell environment or `.env`):
 | `POSTGRES_HOST_PORT` | `5433` | Host port for the compose PostgreSQL |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `asm` / `asm` / `asm` | Compose database credentials |
 | `WORKER_CONCURRENCY` | `4` | Celery worker processes |
+| `DNS_NAMESERVERS` | `1.1.1.1,8.8.8.8` | Resolvers used for discovery inside Docker. Docker's built-in DNS drops AAAA answers when the container network has no IPv6, so discovery queries public resolvers directly |
 
 ```bash
 docker compose up --build -d     # run in the background
@@ -271,6 +272,7 @@ code**: if a required variable is missing, the app refuses to start and names th
 | `FIRST_ADMIN_EMAIL` | yes | `admin@example.com` | Admin seeded at startup when no users exist |
 | `FIRST_ADMIN_PASSWORD` | yes | `ChangeMe123!` | Seeded admin password; must meet the password policy |
 | `DNS_TIMEOUT_SECONDS` | yes | `5` | Timeout per DNS record type |
+| `DNS_NAMESERVERS` | no | *(empty)* / `1.1.1.1,8.8.8.8` | Comma-separated resolver IPs used for discovery; empty uses the system resolver |
 | `REDIS_URL` | yes | `redis://localhost:6379/0` | Redis URL. Overridden by compose in Docker |
 | `CELERY_BROKER_URL` | no | `redis://localhost:6379/0` | Celery broker; empty means `REDIS_URL` |
 | `CELERY_RESULT_BACKEND` | no | `redis://localhost:6379/1` | Celery result backend; empty means `REDIS_URL` (results are not stored) |

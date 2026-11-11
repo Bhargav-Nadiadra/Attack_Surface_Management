@@ -24,9 +24,11 @@ class DnsResolver(Protocol):
 
 
 class DnsPythonResolver:
-    def __init__(self, timeout_seconds: float) -> None:
+    def __init__(self, timeout_seconds: float, nameservers: list[str] | None = None) -> None:
         self.timeout_seconds = timeout_seconds
         self._resolver = dns.resolver.Resolver()
+        if nameservers:
+            self._resolver.nameservers = nameservers
         self._resolver.timeout = min(timeout_seconds, 2.0)
         self._resolver.lifetime = timeout_seconds
 
