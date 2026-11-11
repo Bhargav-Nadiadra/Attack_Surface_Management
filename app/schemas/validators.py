@@ -55,15 +55,19 @@ def validate_fqdn(value: str) -> str:
     if len(labels) < 2:
         raise ValueError("Domain must contain at least two labels, e.g. 'example.com'.")
     for label in labels:
-        if not label:
-            raise ValueError("Domain must not contain empty labels.")
-        if len(label) > LABEL_MAX_LENGTH:
-            raise ValueError(f"Each domain label must be at most {LABEL_MAX_LENGTH} characters.")
-        if not _LABEL_PATTERN.match(label):
-            raise ValueError(
-                f"Invalid label '{label}': use letters, digits and hyphens, "
-                "not starting or ending with a hyphen."
-            )
+        _validate_label(label)
     if labels[-1].isdigit():
         raise ValueError("Domain must not be an IP address or end in a numeric TLD.")
     return name
+
+
+def _validate_label(label: str) -> None:
+    if not label:
+        raise ValueError("Domain must not contain empty labels.")
+    if len(label) > LABEL_MAX_LENGTH:
+        raise ValueError(f"Each domain label must be at most {LABEL_MAX_LENGTH} characters.")
+    if not _LABEL_PATTERN.match(label):
+        raise ValueError(
+            f"Invalid label '{label}': use letters, digits and hyphens, "
+            "not starting or ending with a hyphen."
+        )

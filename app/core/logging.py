@@ -8,7 +8,8 @@ from typing import Any
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 
 _RESERVED_ATTRS = frozenset(
-    vars(logging.LogRecord("", 0, "", 0, "", None, None)).keys() | {"message", "asctime"}
+    vars(logging.LogRecord("", 0, "", 0, "", None, None)).keys()
+    | {"message", "asctime", "color_message"}
 )
 
 

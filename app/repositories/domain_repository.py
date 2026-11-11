@@ -1,7 +1,7 @@
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.domain import Domain
@@ -39,7 +39,7 @@ class DomainRepository:
         offset: int,
         limit: int,
     ) -> tuple[Sequence[Domain], int]:
-        query: Select[tuple[Domain]] = select(Domain)
+        query = select(Domain)
         if status is not None:
             query = query.where(Domain.status == status)
         if search:

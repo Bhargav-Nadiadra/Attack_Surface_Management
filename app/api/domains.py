@@ -1,5 +1,5 @@
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
@@ -18,8 +18,12 @@ router = APIRouter(
     responses={401: {"model": ErrorResponse, "description": "Missing or invalid token"}},
 )
 
-NOT_FOUND = {404: {"model": ErrorResponse, "description": "Domain not found"}}
-FORBIDDEN = {403: {"model": ErrorResponse, "description": "Role not allowed"}}
+NOT_FOUND: dict[int | str, dict[str, Any]] = {
+    404: {"model": ErrorResponse, "description": "Domain not found"}
+}
+FORBIDDEN: dict[int | str, dict[str, Any]] = {
+    403: {"model": ErrorResponse, "description": "Role not allowed"}
+}
 
 
 @router.get("", response_model=Page[DomainResponse], summary="List domains")

@@ -29,7 +29,7 @@ class FakeResolver:
         self.plan = plan
         self.calls: list[RecordType] = []
 
-    def resolve(self, domain: str, record_type: RecordType) -> list[str]:
+    def resolve(self, _domain: str, record_type: RecordType) -> list[str]:
         self.calls.append(record_type)
         result = self.plan.get(record_type, [])
         if isinstance(result, BaseException):
@@ -149,7 +149,7 @@ class TestRunScan:
         domain, scan = pending
 
         class SweptDuringLookup(FakeResolver):
-            def resolve(self, name: str, record_type: RecordType) -> list[str]:
+            def resolve(self, _domain: str, _record_type: RecordType) -> list[str]:
                 db.get(Scan, scan.id).status = ScanStatus.FAILED
                 db.commit()
                 return ["1.1.1.1"]

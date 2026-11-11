@@ -24,12 +24,6 @@ class AppError(Exception):
         return {}
 
 
-class ValidationAppError(AppError):
-    status_code = 400
-    code = "validation_error"
-    message = "Request validation failed."
-
-
 class AuthenticationError(AppError):
     status_code = 401
     code = "authentication_failed"

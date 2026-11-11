@@ -42,6 +42,8 @@ RUN python -c "import tomllib; deps = tomllib.load(open('pyproject.toml', 'rb'))
 COPY --chown=app:app tests ./tests
 USER app
 
-ENV COVERAGE_FILE=/tmp/.coverage
+ENV COVERAGE_FILE=/tmp/.coverage \
+    RUFF_CACHE_DIR=/tmp/.ruff_cache \
+    MYPY_CACHE_DIR=/tmp/.mypy_cache
 
 CMD ["pytest", "-p", "no:cacheprovider", "--cov=app", "--cov-report=term-missing"]

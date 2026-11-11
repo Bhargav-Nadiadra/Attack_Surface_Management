@@ -28,7 +28,3 @@ ROLE_PERMISSIONS: dict[Permission, frozenset[UserRole]] = {
 
 def roles_for(permission: Permission) -> frozenset[UserRole]:
     return ROLE_PERMISSIONS[permission]
-
-
-def has_permission(role: UserRole, permission: Permission) -> bool:
-    return role in ROLE_PERMISSIONS[permission]

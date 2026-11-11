@@ -31,6 +31,8 @@ dev = [
     "black>=24.4",
     "ruff>=0.5",
     "isort>=5.13",
+    "mypy>=1.10",
+    "celery-types>=0.22",
 ]
 
 [tool.setuptools.packages.find]
@@ -49,8 +51,21 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "B", "UP", "S", "C4", "SIM"]
+select = ["E", "F", "W", "B", "UP", "S", "C4", "SIM", "C90", "RET", "PIE", "PERF", "ARG"]
 ignore = ["B008"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["app"]
+
+[[tool.mypy.overrides]]
+module = ["dns.*", "billiard.*", "kombu.*"]
+ignore_missing_imports = true
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106", "SLF001"]

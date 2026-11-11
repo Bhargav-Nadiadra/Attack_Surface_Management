@@ -4,6 +4,7 @@ from celery import Celery
 from celery.signals import setup_logging, worker_process_init
 
 from app.core.config import settings
+from app.core.database import engine
 from app.core.logging import configure_logging
 
 RUN_DISCOVERY_TASK = "scans.run_discovery"
@@ -54,6 +55,4 @@ def _configure_worker_logging(**_: Any) -> None:
 
 @worker_process_init.connect
 def _reset_db_pool(**_: Any) -> None:
-    from app.core.database import engine
-
     engine.dispose(close=False)

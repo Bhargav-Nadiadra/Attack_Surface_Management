@@ -23,8 +23,8 @@ class AssetRepository:
         latest_only: bool,
         offset: int,
         limit: int,
-    ) -> tuple[Sequence[Row[tuple[Asset, str]]], int]:
-        query: Select[tuple[Asset, str]] = select(Asset, Domain.name).join(
+    ) -> tuple[Sequence[Row[Asset, str]], int]:
+        query: Select[Asset, str] = select(Asset, Domain.name).join(
             Domain, Domain.id == Asset.domain_id
         )
         if domain_id is not None:
@@ -43,7 +43,7 @@ class AssetRepository:
         return rows, total
 
     @staticmethod
-    def _latest_completed_scan_ids(domain_id: uuid.UUID | None) -> Select[tuple[uuid.UUID]]:
+    def _latest_completed_scan_ids(domain_id: uuid.UUID | None) -> Select[uuid.UUID]:
         latest = (
             select(Scan.id)
             .where(Scan.status == ScanStatus.COMPLETED)

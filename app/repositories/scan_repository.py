@@ -14,9 +14,6 @@ class ScanRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def get(self, scan_id: uuid.UUID) -> Scan | None:
-        return self.session.get(Scan, scan_id)
-
     def add(self, scan: Scan) -> Scan:
         self.session.add(scan)
         self.session.flush()

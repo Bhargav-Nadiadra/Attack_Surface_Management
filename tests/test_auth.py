@@ -223,13 +223,14 @@ class TestRegister:
 
 
 class TestSeedFirstAdmin:
-    def test_skips_when_users_exist(self, db: Session, admin: User) -> None:
+    @pytest.mark.usefixtures("admin")
+    def test_skips_when_users_exist(self, db: Session) -> None:
         before = db.scalar(select(func.count()).select_from(User))
         AuthService(db).seed_first_admin(f"{unique('seed')}@example.com", DEFAULT_PASSWORD)
         assert db.scalar(select(func.count()).select_from(User)) == before
 
     def test_creates_admin_when_no_users(self, db: Session, monkeypatch) -> None:
-        monkeypatch.setattr(UserRepository, "any_exist", lambda self: False)
+        monkeypatch.setattr(UserRepository, "any_exist", lambda _self: False)
         email = f"{unique('Seed')}@Example.com"
 
         AuthService(db).seed_first_admin(email, DEFAULT_PASSWORD)
@@ -240,6 +241,6 @@ class TestSeedFirstAdmin:
         assert seeded.role == UserRole.ADMIN
 
     def test_rejects_weak_seed_password(self, db: Session, monkeypatch) -> None:
-        monkeypatch.setattr(UserRepository, "any_exist", lambda self: False)
+        monkeypatch.setattr(UserRepository, "any_exist", lambda _self: False)
         with pytest.raises(ValueError):
             AuthService(db).seed_first_admin(f"{unique('seed')}@example.com", "weak")

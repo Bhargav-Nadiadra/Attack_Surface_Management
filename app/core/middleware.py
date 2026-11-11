@@ -17,7 +17,7 @@ logger = logging.getLogger("app.request")
 def _resolve_request_id(scope: Scope) -> str:
     for name, value in scope.get("headers", []):
         if name.decode("latin-1").lower() == REQUEST_ID_HEADER.lower():
-            candidate = value.decode("latin-1")
+            candidate: str = value.decode("latin-1")
             if _VALID_REQUEST_ID.match(candidate):
                 return candidate
     return uuid.uuid4().hex

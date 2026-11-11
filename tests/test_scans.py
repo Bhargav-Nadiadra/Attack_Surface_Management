@@ -10,7 +10,7 @@ from app.repositories.scan_repository import ScanRepository
 
 class TestTriggerScan:
     def test_manual_trigger_returns_202(
-        self, client, db: Session, analyst, analyst_headers, make_domain, dispatcher
+        self, client, db: Session, analyst_headers, make_domain, dispatcher
     ) -> None:
         domain = make_domain(status=ScanStatus.COMPLETED)
 
@@ -38,7 +38,7 @@ class TestTriggerScan:
         self, client, admin_headers, make_domain, dispatcher, monkeypatch
     ) -> None:
         domain = make_domain(status=ScanStatus.RUNNING)
-        monkeypatch.setattr(ScanRepository, "get_active_for_domain", lambda self, _: None)
+        monkeypatch.setattr(ScanRepository, "get_active_for_domain", lambda _self, _domain_id: None)
 
         response = client.post(f"/domains/{domain.id}/scan", headers=admin_headers)
 
