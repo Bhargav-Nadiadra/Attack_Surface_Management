@@ -1,6 +1,10 @@
-from fastapi import APIRouter, status
+from typing import Annotated
 
-from app.api.deps import CurrentUser, DbSession
+from fastapi import APIRouter, Depends, status
+
+from app.api.deps import DbSession, require_permission
+from app.core.permissions import Permission
+from app.models.user import User
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 from app.schemas.error import ErrorResponse
 from app.schemas.user import UserResponse
@@ -22,10 +26,16 @@ def login(data: LoginRequest, db: DbSession) -> TokenResponse:
     "/register",
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
+    summary="Register a new user (Admin only)",
     responses={
-        401: {"model": ErrorResponse, "description": "Not authenticated"},
+        401: {"model": ErrorResponse, "description": "Missing or invalid token"},
+        403: {"model": ErrorResponse, "description": "Caller is not Admin"},
         409: {"model": ErrorResponse, "description": "Email already registered"},
     },
 )
-def register(data: RegisterRequest, db: DbSession, _: CurrentUser) -> UserResponse:
+def register(
+    data: RegisterRequest,
+    db: DbSession,
+    _: Annotated[User, Depends(require_permission(Permission.USER_REGISTER))],
+) -> UserResponse:
     return UserResponse.model_validate(AuthService(db).register(data))

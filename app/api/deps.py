@@ -1,15 +1,21 @@
+import logging
 import uuid
+from collections.abc import Callable
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.exceptions import AuthenticationError
+from app.core.exceptions import AuthenticationError, PermissionDeniedError
+from app.core.permissions import Permission, roles_for
 from app.core.security import decode_access_token
+from app.models.enums import UserRole
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
+
+logger = logging.getLogger("app.auth")
 
 DbSession = Annotated[Session, Depends(get_db)]
 
@@ -36,3 +42,27 @@ def get_current_user(
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+def require_roles(*roles: UserRole) -> Callable[..., User]:
+    allowed = frozenset(roles)
+
+    def dependency(request: Request, user: CurrentUser) -> User:
+        if user.role not in allowed:
+            logger.warning(
+                "auth.permission_denied",
+                extra={
+                    "user_id": str(user.id),
+                    "role": user.role,
+                    "method": request.method,
+                    "path": request.url.path,
+                },
+            )
+            raise PermissionDeniedError()
+        return user
+
+    return dependency
+
+
+def require_permission(permission: Permission) -> Callable[..., User]:
+    return require_roles(*roles_for(permission))
